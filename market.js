@@ -285,7 +285,7 @@ async function refreshUnread() {
             $(id).hidden = !unread;
             $(id).textContent = unread > 9 ? "9+" : String(unread);
         }
-        document.querySelector(".inbox-link")?.setAttribute("aria-label", unread ? `Inbox, ${unread} unread` : "Inbox");
+        document.querySelector(".inbox-link")?.setAttribute("aria-label", unread ? `Messages, ${unread} unread` : "Messages");
     } catch {
         // the badge just stays as it was
     }
@@ -1005,64 +1005,92 @@ async function renderMine() {
 // INBOX AND CHAT
 // ============================================
 
+// The conversation list, used on its own (phones) and as the left pane.
+function inboxList(conversations, activeId = null) {
+    return `<ul class="inbox">${conversations.map((c) => `
+        <li>
+            <a class="inbox-row${c.unread && c.id !== activeId ? " is-unread" : ""}${c.id === activeId ? " is-active" : ""}"
+               href="#/chat/${c.id}" ${c.id === activeId ? 'aria-current="page"' : ""}>
+                <span class="inbox-photo${c.listing.cover ? "" : " is-missing"}">${c.listing.cover ? `<img src="${escapeHTML(c.listing.cover)}" alt="" loading="lazy" decoding="async">` : ""}</span>
+                <span class="inbox-text">
+                    <span class="inbox-top">
+                        <strong>${escapeHTML(c.with.name)}</strong>
+                        <span class="role-tag">${c.role === "buying" ? "Buying" : "Selling"}</span>
+                        <time>${escapeHTML(timeAgo(c.last_message_at))}</time>
+                    </span>
+                    <span class="inbox-listing">${escapeHTML(c.listing.title)}${c.listing.price != null ? ` · ${escapeHTML(priceText(c.listing.price, c.listing.currency))}` : ""}</span>
+                    <span class="inbox-last">${c.last_from_me ? "You: " : ""}${escapeHTML(c.last_body)}</span>
+                </span>
+                ${c.unread && c.id !== activeId ? `<span class="unread-dot" aria-label="Unread"></span>` : ""}
+            </a>
+        </li>`).join("")}
+    </ul>`;
+}
+
+function messagesListPane(data, activeId = null) {
+    return `
+        <aside class="messages-list" aria-label="Conversations">
+            <div class="messages-head">
+                <h1>Messages</h1>
+                <p>${data.unread ? `${data.unread} unread` : `${data.conversations.length} conversation${data.conversations.length === 1 ? "" : "s"}`}</p>
+            </div>
+            ${inboxList(data.conversations, activeId)}
+        </aside>`;
+}
+
 async function renderInbox() {
     const data = await api("/me/conversations");
     refreshUnread();
-    view().innerHTML = `
-        <section class="browse-head">
-            <div>
-                <h1>Inbox</h1>
-                <p>${data.conversations.length ? `${data.unread ? `${data.unread} unread · ` : ""}Messages about what you're buying and selling.` : "Messages about what you're buying and selling show up here."}</p>
-            </div>
-        </section>
-        ${data.conversations.length ? `
-            <ul class="inbox">${data.conversations.map((c) => `
-                <li>
-                    <a class="inbox-row${c.unread ? " is-unread" : ""}" href="#/chat/${c.id}">
-                        <span class="inbox-photo${c.listing.cover ? "" : " is-missing"}">${c.listing.cover ? `<img src="${escapeHTML(c.listing.cover)}" alt="" loading="lazy" decoding="async">` : ""}</span>
-                        <span class="inbox-text">
-                            <span class="inbox-top">
-                                <strong>${escapeHTML(c.with.name)}</strong>
-                                <span class="role-tag">${c.role === "buying" ? "Buying" : "Selling"}</span>
-                                <time>${escapeHTML(timeAgo(c.last_message_at))}</time>
-                            </span>
-                            <span class="inbox-listing">${escapeHTML(c.listing.title)}${c.listing.price != null ? ` · ${escapeHTML(priceText(c.listing.price, c.listing.currency))}` : ""}</span>
-                            <span class="inbox-last">${c.last_from_me ? "You: " : ""}${escapeHTML(c.last_body)}</span>
-                        </span>
-                        ${c.unread ? `<span class="unread-dot" aria-label="Unread"></span>` : ""}
-                    </a>
-                </li>`).join("")}
-            </ul>` : `
+    if (!data.conversations.length) {
+        view().innerHTML = `
             <div class="empty">
                 ${icon(ICONS.send, "icon empty-icon")}
                 <h2>No messages yet</h2>
                 <p>Open a listing and message the seller, or wait for buyers to message you.</p>
                 <a class="btn btn-primary" href="#/">Browse listings</a>
-            </div>`}`;
+            </div>`;
+        return;
+    }
+    // wide screens: the list and an empty pane; phones: just the list
+    view().innerHTML = `
+        <div class="messages">
+            ${messagesListPane(data)}
+            <section class="messages-pane messages-empty" aria-hidden="true">
+                ${icon(ICONS.send, "icon empty-icon")}
+                <p>Pick a conversation to read and reply.</p>
+            </section>
+        </div>`;
 }
 
 async function renderChat(id) {
-    let data = await api(`/conversations/${id}`);
+    let [data, list] = await Promise.all([api(`/conversations/${id}`), api("/me/conversations")]);
     refreshUnread();
 
     view().innerHTML = `
-        <a class="back-link" href="#/inbox">${icon(ICONS.back)}Inbox</a>
-        <section class="chat">
-            <a class="chat-head" href="#/listing/${data.listing.id}">
-                <span class="inbox-photo${data.listing.cover ? "" : " is-missing"}">${data.listing.cover ? `<img src="${escapeHTML(data.listing.cover)}" alt="" decoding="async">` : ""}</span>
-                <span>
-                    <strong>${escapeHTML(data.listing.title)}</strong>
-                    <small>${data.role === "buying" ? "Seller" : "Buyer"}: ${escapeHTML(data.with.name)}${data.listing.price != null ? ` · ${escapeHTML(priceText(data.listing.price, data.listing.currency))}` : ""}${data.listing.status === "sold" ? " · Sold" : ""}</small>
-                </span>
-            </a>
-            <ol class="thread" id="thread" aria-label="Messages"></ol>
-            <form class="composer" id="composer" novalidate>
-                <label class="visually-hidden" for="reply">Your message</label>
-                <textarea id="reply" rows="1" maxlength="2000" placeholder="Write a message"></textarea>
-                <button class="btn btn-primary" type="submit" aria-label="Send">${icon(ICONS.send)}</button>
-            </form>
-            <p class="form-error" id="chatError" role="alert" hidden></p>
-        </section>`;
+        <div class="messages is-chat-open">
+            ${messagesListPane(list, id)}
+            <section class="messages-pane chat">
+                <div class="chat-top">
+                    <a class="chat-back" href="#/inbox" aria-label="All messages">${icon(ICONS.back)}</a>
+                    <a class="chat-head" href="#/listing/${data.listing.id}">
+                        <span class="inbox-photo${data.listing.cover ? "" : " is-missing"}">${data.listing.cover ? `<img src="${escapeHTML(data.listing.cover)}" alt="" decoding="async">` : ""}</span>
+                        <span>
+                            <strong>${escapeHTML(data.listing.title)}</strong>
+                            <small>${data.role === "buying" ? "Seller" : "Buyer"}: ${escapeHTML(data.with.name)}${data.listing.price != null ? ` · ${escapeHTML(priceText(data.listing.price, data.listing.currency))}` : ""}${data.listing.status === "sold" ? " · Sold" : ""}</small>
+                        </span>
+                    </a>
+                </div>
+                <ol class="thread" id="thread" aria-label="Messages"></ol>
+                <form class="composer" id="composer" novalidate>
+                    <label class="visually-hidden" for="reply">Your message</label>
+                    <textarea id="reply" rows="1" maxlength="2000" placeholder="Write a message"></textarea>
+                    <button class="btn btn-primary" type="submit" aria-label="Send">${icon(ICONS.send)}</button>
+                </form>
+                <p class="form-error" id="chatError" role="alert" hidden></p>
+            </section>
+        </div>`;
+    // keep the open conversation in view in a long list
+    view().querySelector(".inbox-row.is-active")?.scrollIntoView({ block: "nearest" });
 
     const thread = $("thread");
     const draw = () => {
@@ -1105,6 +1133,8 @@ async function renderChat(id) {
             $("chatError").hidden = true;
             thread.scrollTop = thread.scrollHeight;
             draw();
+            const preview = view().querySelector(".inbox-row.is-active .inbox-last");
+            if (preview) preview.textContent = `You: ${message.body}`;
         } catch (error) {
             $("chatError").textContent = error.message;
             $("chatError").hidden = false;
