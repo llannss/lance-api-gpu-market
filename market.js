@@ -30,6 +30,10 @@ const view = () => $("view");
 let account = null;
 let profileName = null;      // the public Marketplace name; null until chosen
 let catalog = [];
+// Started right after sign-in and awaited only by the views that need them,
+// so the first page doesn't wait on two extra round trips.
+let profileReady = Promise.resolve();
+let catalogReady = Promise.resolve();
 let currency = readStore("mk-currency", "PHP");
 let stopChatPoll = null;
 
@@ -367,7 +371,7 @@ function listingCard(item) {
 
 async function renderBrowse(params) {
     const gpuId = Number(params.get("gpu")) || null;
-    const data = await api(`/listings${gpuId ? `?gpu_id=${gpuId}` : ""}`);
+    const [data] = await Promise.all([api(`/listings${gpuId ? `?gpu_id=${gpuId}` : ""}`), gpuId ? catalogReady : null]);
     const gpu = gpuId ? catalog.find((g) => Number(g.id) === gpuId) : null;
     const all = data.listings;
 
@@ -436,7 +440,7 @@ async function renderBrowse(params) {
 // ============================================
 
 async function renderListing(id) {
-    const item = await api(`/listings/${id}`);
+    const [item] = await Promise.all([api(`/listings/${id}`), profileReady]);   // the message box asks for a name only if there's none
     const photos = item.photos || [];
     const gpu = item.gpu;
 
@@ -669,7 +673,7 @@ async function uploadPhoto(file) {
 }
 
 async function renderForm(id) {
-    const existing = id ? await api(`/listings/${id}`) : null;
+    const [existing] = await Promise.all([id ? api(`/listings/${id}`) : null, profileReady, catalogReady]);
     if (existing && !existing.is_mine) throw Object.assign(new Error("You can only edit your own listings."), { status: 403 });
 
     const state = {
@@ -1177,19 +1181,18 @@ async function setup() {
     if (!account) return;
     document.documentElement.classList.remove("auth-checking");
 
-    try {
-        profileName = (await api("/me/profile")).display_name;
-    } catch {
-        profileName = null;   // asked for again when it's needed
-    }
+    profileReady = api("/me/profile")
+        .then((data) => {
+            profileName = data.display_name;
+            $("avatar").textContent = (profileName || account.email || "?")[0].toUpperCase();
+        })
+        .catch(() => { profileName = null; });   // asked for again when it's needed
+    // the catalog is the same for everyone: the API lets the browser keep it a minute
+    catalogReady = api("/gpus", { cache: "default" })
+        .then((data) => { catalog = Array.isArray(data) ? data : data.gpus || []; })
+        .catch(() => { catalog = []; });   // listings still work; only linking a catalog GPU is off
     setupMenu();
     setupCurrency();
-    try {
-        const data = await api("/gpus");
-        catalog = Array.isArray(data) ? data : data.gpus || [];
-    } catch {
-        catalog = [];   // listings still work; only linking a catalog GPU is off
-    }
     window.addEventListener("hashchange", route);
     route();
     refreshUnread();
