@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" class="auth-checking">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Marketplace – GPU Nexus</title>
+    <meta name="description" content="Buy and sell used graphics cards with other GPU Nexus members. Photos, prices in pesos or dollars, and messages in one place.">
+    <meta name="theme-color" content="#f7f7fc">
+    <meta property="og:title" content="Marketplace – GPU Nexus">
+    <meta property="og:description" content="Buy and sell used graphics cards with other GPU Nexus members.">
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/nexus-tokens.css">
+    <link rel="stylesheet" href="market.css">
+</head>
+<body>
+<a class="skip-link" href="#view">Skip to the listings</a>
+
+<header class="topbar">
+    <a class="brand" href="#/" aria-label="GPU Nexus Marketplace, all listings">
+        <svg class="brand-chip" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M11 2.5v4M16 2.5v4M21 2.5v4M11 25.5v4M16 25.5v4M21 25.5v4M2.5 11h4M2.5 16h4M2.5 21h4M25.5 11h4M25.5 16h4M25.5 21h4" stroke="#1e1b4b" stroke-width="2" stroke-linecap="round"/><rect x="6.5" y="6.5" width="19" height="19" rx="4.5" fill="#f5f3ff" stroke="#1e1b4b" stroke-width="2"/><circle cx="16" cy="16" r="6" fill="#8b5cf6"/><path d="M16 16c0-2.4 1.1-3.9 3-4.3M16 16c2.1 1.2 2.8 3 2.1 4.8M16 16c-2.1 1.2-4 1.2-5.2-.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><circle cx="16" cy="16" r="1.3" fill="#fff"/></svg>
+        <span class="brand-text"><strong>GPU <span>Nexus</span></strong><small>Marketplace</small></span>
+    </a>
+
+    <nav class="topnav" aria-label="Marketplace">
+        <a href="#/" data-nav="browse">Browse</a>
+        <a href="#/mine" data-nav="mine">My listings</a>
+        <a href="#/inbox" data-nav="inbox" class="inbox-link">Inbox <span class="badge" id="unreadBadge" hidden></span></a>
+    </nav>
+
+    <div class="topbar-right">
+        <div class="currency-switch" role="radiogroup" aria-label="Show prices in">
+            <button type="button" role="radio" aria-checked="true" data-currency="PHP">₱</button>
+            <button type="button" role="radio" aria-checked="false" data-currency="USD">$</button>
+        </div>
+        <a class="btn btn-primary sell-btn" href="#/sell">Sell a GPU</a>
+
+        <!-- GPU Nexus menu: the other two sites and the account -->
+        <div class="nexus-menu" id="nexusMenu">
+            <button class="nexus-toggle" type="button" id="nexusToggle" aria-label="GPU Nexus menu" aria-expanded="false" aria-controls="nexusPanel">
+                <span class="avatar" id="avatar" aria-hidden="true"></span>
+                <svg class="icon caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="nexus-panel" id="nexusPanel">
+                <p class="nexus-account" id="nexusAccount"></p>
+                <nav aria-label="GPU Nexus">
+                    <a class="nexus-item" href="/index.html">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>
+                        <span><strong>Finder</strong><small>Search, compare and rank GPUs</small></span>
+                    </a>
+                    <a class="nexus-item" href="/arena/">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7" width="19" height="11" rx="4"/><path d="M7 10.5v4M5 12.5h4M15.5 11.5h.01M18 13.5h.01"/></svg>
+                        <span><strong>GPU Guessr</strong><small>Guess real cards, eight ways</small></span>
+                    </a>
+                    <a class="nexus-item is-current" href="#/" aria-current="page">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h16l-1.5 10.5h-13z"/><path d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2"/></svg>
+                        <span><strong>Marketplace</strong><small>You're here</small></span>
+                    </a>
+                </nav>
+                <button class="nexus-signout" type="button" id="signOut">Sign out</button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main id="view" tabindex="-1" aria-live="polite"></main>
+
+<!-- phone navigation -->
+<nav class="tabbar" aria-label="Marketplace">
+    <a href="#/" data-nav="browse"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span>Browse</span></a>
+    <a href="#/sell" data-nav="sell"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg><span>Sell</span></a>
+    <a href="#/inbox" data-nav="inbox"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.5V17H6.5A2.5 2.5 0 0 1 4 14.5z"/></svg><span>Inbox</span><span class="badge" id="unreadBadgeTab" hidden></span></a>
+    <a href="#/mine" data-nav="mine"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h16l-1.5 10.5h-13z"/><path d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2"/></svg><span>Mine</span></a>
+</nav>
+
+<script src="market.js"></script>
+</body>
+</html>
