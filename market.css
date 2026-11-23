@@ -2054,3 +2054,65 @@ a.gpu-link:active,
     min-width: 0;
     grid-template-columns: minmax(0, 1fr);
 }
+
+
+/* ---------- payoff moments ---------- */
+
+/* just posted: a note that the listing is live */
+.live-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--nx-success-line);
+    border-radius: 14px;
+    background: var(--nx-success-bg);
+    color: var(--nx-success);
+    font-size: 15px;
+    animation: note-in 280ms var(--ease-out) both;
+}
+
+.live-note .icon {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    margin-top: 1px;
+}
+
+.live-note strong {
+    font-weight: 700;
+}
+
+@keyframes note-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+/* just marked sold: the tag stamps onto the photo */
+.sold-tag.is-stamped {
+    animation: stamp 300ms var(--ease-out) both;
+}
+
+@keyframes stamp {
+    from {
+        opacity: 0;
+        transform: scale(1.4);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes note-in {
+        from {
+            opacity: 0;
+        }
+    }
+
+    @keyframes stamp {
+        from {
+            opacity: 0;
+        }
+    }
+}

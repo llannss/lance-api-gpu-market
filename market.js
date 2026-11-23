@@ -36,6 +36,10 @@ let profileReady = Promise.resolve();
 let catalogReady = Promise.resolve();
 let currency = readStore("mk-currency", "PHP");
 let stopChatPoll = null;
+// One-shot moments: the listing just posted, the listing just marked sold.
+// The listing page reads them once and clears them, so a reload is quiet.
+let justListed = null;
+let justSold = null;
 
 
 // ============================================
@@ -82,6 +86,7 @@ const ICONS = {
     send: '<path d="M4 12 20 4l-6 16-2.5-6.5z"/>',
     back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+    check: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
     shield: '<path d="M12 3 5 6v5c0 4.4 3 8.4 7 10 4-1.6 7-5.6 7-10V6z"/><path d="m9 12 2 2 4-4"/>',
     flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2.5v3M15 2.5v3M9 18.5v3M15 18.5v3M2.5 9h3M2.5 15h3M18.5 9h3M18.5 15h3"/>',
@@ -488,15 +493,18 @@ async function renderBrowse(params) {
 async function renderListing(id) {
     const [item] = await Promise.all([api(`/listings/${id}`), profileReady]);   // the message box asks for a name only if there's none
     const photos = item.photos || [];
+    const fresh = { listed: justListed === item.id, sold: justSold === item.id };
+    justListed = justSold = null;   // shown once
     const gpu = item.gpu;
 
     view().innerHTML = `
         <a class="back-link" href="#/">${icon(ICONS.back)}All listings</a>
+        ${fresh.listed ? `<p class="live-note" role="status">${icon(ICONS.check)}<span><strong>Your listing is live.</strong> Buyers can find it now and message you here.</span></p>` : ""}
         <article class="listing-page">
             <div class="gallery">
                 <div class="gallery-main${photos.length ? "" : " is-missing"}">
                     ${photos.length ? `<img id="mainPhoto" src="${escapeHTML(photos[0])}" alt="${escapeHTML(item.title)}" decoding="async">` : ""}
-                    ${item.status === "sold" ? `<span class="sold-tag">Sold</span>` : ""}
+                    ${item.status === "sold" ? `<span class="sold-tag${fresh.sold ? " is-stamped" : ""}">Sold</span>` : ""}
                 </div>
                 ${photos.length > 1 ? `<div class="gallery-thumbs">${photos.map((url, i) => `
                     <button class="thumb${i === 0 ? " is-active" : ""}" type="button" data-photo="${i}" aria-label="Photo ${i + 1} of ${photos.length}">
@@ -574,6 +582,7 @@ async function renderListing(id) {
             <p class="form-error" id="ownError" role="alert" hidden></p>`;
         $("toggleSold").addEventListener("click", async () => {
             await send(`/listings/${item.id}`, "PATCH", { status: item.status === "sold" ? "active" : "sold" });
+            if (item.status !== "sold") justSold = item.id;
             route();
         });
         const panel = $("confirmDelete");
@@ -952,6 +961,7 @@ async function renderForm(id) {
             const saved = existing
                 ? await send(`/listings/${existing.id}`, "PATCH", body)
                 : await send("/listings", "POST", body);
+            if (!existing) justListed = saved.id;
             go(`#/listing/${saved.id}`);
         } catch (e) {
             $("formError").textContent = e.message;
