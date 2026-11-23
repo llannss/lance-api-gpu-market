@@ -760,6 +760,14 @@ main {
     background: var(--nx-tint);
 }
 
+/* no photo, or one deleted from storage: the drawn picture icon, not a blank box */
+.gallery-main.is-missing {
+    background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a3b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='14' rx='2'/%3E%3Ccircle cx='9' cy='10' r='1.6'/%3E%3Cpath d='m20.5 16-4.5-4.5L7 19'/%3E%3C/svg%3E")
+        center / 64px no-repeat,
+        var(--nx-tint);
+}
+
 .gallery-main img {
     width: 100%;
     height: 100%;
@@ -797,6 +805,7 @@ main {
 
 .listing-side h1 {
     font-size: clamp(24px, 3vw, 32px);
+    overflow-wrap: anywhere;
 }
 
 .big-price {
@@ -1224,6 +1233,7 @@ a.gpu-link:hover {
 
 .inbox {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);   /* a long link in a preview can't widen the list */
     overflow: hidden;
     border: 1px solid var(--nx-line);
     border-radius: 16px;
@@ -1267,13 +1277,20 @@ a.gpu-link:hover {
     display: grid;
     flex: 1;
     min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
     gap: 2px;
 }
 
 .inbox-top {
     display: flex;
+    flex-wrap: wrap;   /* a long name pushes the time to the next line instead of off the row */
     align-items: center;
-    gap: 8px;
+    gap: 2px 8px;
+}
+
+.inbox-top strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .inbox-top time {
@@ -1445,7 +1462,7 @@ a.gpu-link:hover {
 
 @media (max-width: 900px) {
     .listing-page {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);   /* can shrink below its content (thumb strips, long words) */
     }
 
     .topnav {
@@ -1521,7 +1538,7 @@ a.gpu-link:hover {
     }
 
     .field-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);   /* can shrink below its content (thumb strips, long words) */
     }
 
     .listing-grid {
@@ -1728,7 +1745,7 @@ a.gpu-link:hover {
 
 @media (max-width: 1100px) {
     .sell-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);   /* can shrink below its content (thumb strips, long words) */
     }
 
     .sell-preview {
@@ -1971,7 +1988,7 @@ a.gpu-link:active,
 /* phones and narrow tablets: one pane at a time */
 @media (max-width: 900px) {
     .messages {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);   /* can shrink below its content (thumb strips, long words) */
         height: calc(100svh - var(--m-header) - 130px);
     }
 
@@ -1996,4 +2013,44 @@ a.gpu-link:active,
     .messages .bubble {
         max-width: 85%;
     }
+}
+
+
+/* ---------- worst-case data fixes ---------- */
+
+.browse-head h1 {
+    overflow-wrap: anywhere;
+}
+
+/* the card's location stays on one line; the listing page shows all of it */
+.listing-card .listing-loc {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.listing-card .listing-loc > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.listing-card .listing-loc svg {
+    flex: none;
+}
+
+/* "Show more" under the grid when there are more than 60 listings */
+.more-row {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    margin-top: 28px;
+    color: var(--nx-muted);
+    font-size: 14px;
+}
+
+/* a one-line location must not widen its card (and with it the whole row) */
+.listing-card,
+.listing-body {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
 }

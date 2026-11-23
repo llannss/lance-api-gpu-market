@@ -97,7 +97,10 @@ function priceText(amount, from) {
         approx = true;
     }
     const symbol = currency === "USD" ? "$" : "₱";
-    const digits = currency === "USD" && value < 100 ? 2 : 0;
+    // whole amounts stay clean; an amount with centavos/cents shows them, so
+    // 99,999,999.99 never reads as 100,000,000
+    const hasCents = !approx && Math.round(value * 100) % 100 !== 0;
+    const digits = (currency === "USD" && value < 100) || hasCents ? 2 : 0;
     const text = value.toLocaleString("en-PH", { minimumFractionDigits: digits, maximumFractionDigits: digits });
     return `${approx ? "≈ " : ""}${symbol}${text}`;
 }
@@ -110,7 +113,8 @@ function originalPrice(amount, from) {
 function timeAgo(iso) {
     const then = new Date(iso).getTime();
     if (!Number.isFinite(then)) return "";
-    const seconds = Math.round((then - Date.now()) / 1000);
+    const seconds = Math.min(0, Math.round((then - Date.now()) / 1000));
+    if (seconds > -45) return "just now";
     const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
     const steps = [[60, "second"], [60, "minute"], [24, "hour"], [7, "day"], [4.35, "week"], [12, "month"], [Infinity, "year"]];
     let value = seconds;
@@ -120,6 +124,19 @@ function timeAgo(iso) {
     }
     return "";
 }
+
+// The first character as a person sees it: a whole emoji or accented letter,
+// never half of one.
+function initial(text) {
+    const value = String(text || "").trim();
+    if (!value) return "?";
+    const first = typeof Intl.Segmenter === "function"
+        ? new Intl.Segmenter().segment(value)[Symbol.iterator]().next().value.segment
+        : Array.from(value)[0];
+    return first.toUpperCase();
+}
+
+const count = (n) => Number(n || 0).toLocaleString("en-PH");
 
 function monthYear(iso) {
     const date = new Date(iso);
@@ -243,7 +260,7 @@ function setupMenu() {
     const menu = $("nexusMenu");
     const toggle = $("nexusToggle");
     $("nexusAccount").textContent = `Signed in as ${account.email}`;
-    $("avatar").textContent = (profileName || account.email || "?")[0].toUpperCase();
+    $("avatar").textContent = initial(profileName || account.email);
 
     const setOpen = (open) => {
         menu.classList.toggle("is-open", open);
@@ -362,7 +379,7 @@ function listingCard(item) {
                 <span class="listing-title">${escapeHTML(item.title)}</span>
                 <span class="listing-meta">
                     <span class="chip">${escapeHTML(CONDITIONS[item.condition] || item.condition)}</span>
-                    ${item.location ? `<span>${icon(ICONS.pin)}${escapeHTML(item.location)}</span>` : ""}
+                    ${item.location ? `<span class="listing-loc" title="${escapeHTML(item.location)}">${icon(ICONS.pin)}<span>${escapeHTML(item.location)}</span></span>` : ""}
                 </span>
                 <span class="listing-foot">${escapeHTML(item.seller.name)} · ${escapeHTML(timeAgo(item.created_at))}</span>
             </span>
@@ -374,14 +391,18 @@ async function renderBrowse(params) {
     const [data] = await Promise.all([api(`/listings${gpuId ? `?gpu_id=${gpuId}` : ""}`), gpuId ? catalogReady : null]);
     const gpu = gpuId ? catalog.find((g) => Number(g.id) === gpuId) : null;
     const all = data.listings;
+    let page = data.page || 1;
+    const total = data.total ?? all.length;
+    let exhausted = false;   // the API had nothing more, even if the total said otherwise
+    const howMany = `${count(total)} listing${total === 1 ? "" : "s"}`;
 
     view().innerHTML = `
         <section class="browse-head">
             <div>
                 <h1>${gpu ? `Used ${escapeHTML(gpu.model)}` : "Used GPUs for sale"}</h1>
-                <p>${gpu
-                    ? `${data.total} listing${data.total === 1 ? "" : "s"} for this card. <a href="/gpu.html?id=${gpu.id}">See its full specs in the Finder</a> · <a href="#/">All listings</a>`
-                    : `${data.total} listing${data.total === 1 ? "" : "s"} from GPU Nexus members. Message a seller to ask questions or set up a meet-up.`}</p>
+                ${gpu
+                    ? `<p>${total ? `${howMany} for this card.` : "No listings for this card yet."} <a href="/gpu.html?id=${gpu.id}">See its full specs in the Finder</a> · <a href="#/">All listings</a></p>`
+                    : total ? `<p>${howMany} from GPU Nexus members. Message a seller to ask questions or set up a meet-up.</p>` : ""}
             </div>
         </section>
 
@@ -408,7 +429,11 @@ async function renderBrowse(params) {
             </label>
         </div>
 
-        <div class="listing-grid" id="grid"></div>`;
+        <div class="listing-grid" id="grid"></div>
+        <div class="more-row" id="moreRow" hidden>
+            <p id="moreNote"></p>
+            <button class="btn btn-ghost" type="button" id="moreBtn">Show more listings</button>
+        </div>`;
 
     const inPhp = (l) => (l.currency === "USD" ? l.price * PHP_PER_USD : l.price);
     const draw = () => {
@@ -427,8 +452,29 @@ async function renderBrowse(params) {
                    <p>${all.length ? "Try fewer words or any condition." : "Be the first: snap a few photos of a card you don't use anymore."}</p>
                    ${all.length ? "" : `<a class="btn btn-primary" href="#/sell">Sell a GPU</a>`}
                </div>`;
+        // the API sends 60 at a time; search and filters cover what's loaded so far
+        const more = !exhausted && all.length < total;
+        $("moreRow").hidden = !more;
+        if (more) $("moreNote").textContent = `Showing ${count(all.length)} of ${count(total)} listings.`;
     };
     draw();
+    $("moreBtn").addEventListener("click", async (event) => {
+        const btn = event.currentTarget;
+        btn.disabled = true;
+        btn.textContent = "Loading…";
+        try {
+            const next = await api(`/listings?page=${page + 1}${gpuId ? `&gpu_id=${gpuId}` : ""}`);
+            page = next.page || page + 1;
+            all.push(...next.listings.filter((l) => !all.some((x) => x.id === l.id)));
+            if (!next.listings.length) exhausted = true;
+            draw();
+        } catch {
+            $("moreNote").textContent = "Couldn't load more listings. Try again.";
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Show more listings";
+        }
+    });
     $("q").addEventListener("input", (e) => { browseState.q = e.target.value; draw(); });
     $("condition").addEventListener("change", (e) => { browseState.condition = e.target.value; draw(); });
     $("sort").addEventListener("change", (e) => { browseState.sort = e.target.value; draw(); });
@@ -502,11 +548,11 @@ async function renderListing(id) {
     const seller = item.seller;
     const record = `
         <div class="seller-card">
-            <span class="seller-avatar" aria-hidden="true">${escapeHTML(seller.name[0] || "?")}</span>
+            <span class="seller-avatar" aria-hidden="true">${escapeHTML(initial(seller.name))}</span>
             <span>
                 <strong>${escapeHTML(seller.name)}</strong>
                 <small>${[seller.member_since ? `Member since ${escapeHTML(monthYear(seller.member_since))}` : "",
-                          `${seller.for_sale ?? 0} for sale`, `${seller.sold ?? 0} sold`].filter(Boolean).join(" · ")}</small>
+                          `${count(seller.for_sale)} for sale`, `${count(seller.sold)} sold`].filter(Boolean).join(" · ")}</small>
             </span>
         </div>`;
 
@@ -991,7 +1037,7 @@ async function renderMine() {
         <section class="browse-head">
             <div>
                 <h1>My listings</h1>
-                <p>${active.length} for sale · ${sold.length} sold</p>
+                <p>${count(active.length)} for sale · ${count(sold.length)} sold</p>
             </div>
         </section>
         ${data.listings.length ? `
@@ -1036,7 +1082,7 @@ function messagesListPane(data, activeId = null) {
         <aside class="messages-list" aria-label="Conversations">
             <div class="messages-head">
                 <h1>Messages</h1>
-                <p>${data.unread ? `${data.unread} unread` : `${data.conversations.length} conversation${data.conversations.length === 1 ? "" : "s"}`}</p>
+                <p>${data.unread ? `${count(data.unread)} unread` : `${count(data.conversations.length)} conversation${data.conversations.length === 1 ? "" : "s"}`}</p>
             </div>
             ${inboxList(data.conversations, activeId)}
         </aside>`;
@@ -1184,7 +1230,7 @@ async function setup() {
     profileReady = api("/me/profile")
         .then((data) => {
             profileName = data.display_name;
-            $("avatar").textContent = (profileName || account.email || "?")[0].toUpperCase();
+            $("avatar").textContent = initial(profileName || account.email);
         })
         .catch(() => { profileName = null; });   // asked for again when it's needed
     // the catalog is the same for everyone: the API lets the browser keep it a minute
