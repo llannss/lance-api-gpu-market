@@ -1134,7 +1134,7 @@ a.gpu-link:hover {
     border: 3px solid var(--nx-accent-line);
     border-top-color: var(--nx-purple);
     border-radius: 50%;
-    animation: spin 700ms linear infinite;
+    animation: spin 600ms linear infinite;
 }
 
 @keyframes spin {
@@ -1558,11 +1558,295 @@ a.gpu-link:hover {
     }
 }
 
+
+
+/* ---------- critique fixes: seller card, safety, report, confirm, preview ---------- */
+
+.currency-switch button {
+    min-width: 58px;
+    padding: 0 8px;
+    font-size: 13px;
+}
+
+.seller-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--nx-line);
+}
+
+.seller-avatar {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--nx-accent-tint);
+    color: var(--nx-purple);
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.seller-card > span:last-child {
+    display: grid;
+}
+
+.seller-card small {
+    color: var(--nx-muted);
+    font-size: 13px;
+}
+
+.safety {
+    display: grid;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--nx-line);
+    color: var(--nx-ink-soft);
+    font-size: 14px;
+    list-style: none;
+}
+
+.safety li {
+    display: flex;
+    gap: 8px;
+}
+
+.safety .icon {
+    margin-top: 2px;
+    color: var(--nx-success);
+}
+
+.report-link {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+    border: 0;
+    background: transparent;
+    color: var(--nx-muted);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.report-link:hover {
+    color: var(--nx-danger);
+}
+
+.report-form {
+    display: grid;
+    gap: 10px;
+}
+
+.report-form fieldset {
+    border: 0;
+}
+
+.report-form legend {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.report-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--nx-line-strong);
+    border-radius: var(--nx-radius-input);
+    font-size: 16px;
+    resize: vertical;
+}
+
+.report-done {
+    color: var(--nx-success);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.confirm-panel {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--nx-danger-line);
+    border-radius: 12px;
+    background: var(--nx-danger-bg);
+    animation: panel-in 180ms var(--ease-out) both;
+}
+
+@keyframes panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+.btn-danger {
+    background: var(--nx-danger);
+    color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+    filter: brightness(0.92);
+}
+
+.hint {
+    color: var(--nx-muted);
+    font-size: 13px;
+}
+
+.name-field {
+    padding: 14px;
+    border: 1px solid var(--nx-accent-line);
+    border-radius: 12px;
+    background: var(--nx-accent-tint);
+}
+
+.sell-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 760px) minmax(260px, 320px);
+    align-items: start;
+    gap: 32px;
+}
+
+.sell-preview {
+    position: sticky;
+    top: calc(var(--m-header) + 24px);
+}
+
+.preview-label {
+    margin-bottom: 10px;
+    color: var(--nx-muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sell-preview .listing-card {
+    pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+    .sell-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .sell-preview {
+        display: none;
+    }
+}
+
+
+/* ---------- interaction pass ---------- */
+
+/* hover lifts and photo zooms only with a real pointer (no sticky hover on phones) */
+.listing-card:hover,
+a.gpu-link:hover {
+    transform: none;
+}
+
+.listing-card:hover .listing-photo img {
+    transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .listing-card:hover,
+    a.gpu-link:hover {
+        transform: translateY(-2px);
+    }
+
+    .listing-card:hover .listing-photo img {
+        transform: scale(1.03);
+    }
+}
+
+/* everything pressable answers the press */
+.inbox-row,
+.chat-head,
+.choice span,
+.photo-add,
+.slot-btn,
+.thumb,
+.currency-switch button,
+.topnav a,
+.nexus-item,
+.report-link,
+.picker-option,
+.tabbar a {
+    transition-property: background-color, border-color, color, box-shadow, transform;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out);
+}
+
+.listing-card:active,
+a.gpu-link:active,
+.inbox-row:active,
+.chat-head:active {
+    transform: scale(0.99);
+}
+
+.choice:active span,
+.photo-add:active,
+.slot-btn:active,
+.thumb:active,
+.currency-switch button:active,
+.topnav a:active,
+.nexus-item:active,
+.report-link:active,
+.picker-option:active,
+.tabbar a:active {
+    transform: scale(0.97);
+}
+
+/* a message just sent or received slides in; the rest of the thread stays put */
+.bubble.is-new {
+    animation: bubble-in 180ms var(--ease-out) both;
+}
+
+@keyframes bubble-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+
+/* reduced motion: no movement; fades stay */
 @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        animation-duration: 1ms !important;
-        transition-duration: 1ms !important;
+    @keyframes bubble-in {
+        from {
+            opacity: 0;
+        }
+    }
+
+    @keyframes panel-in {
+        from {
+            opacity: 0;
+        }
+    }
+
+    .btn:active,
+    .listing-card,
+    .listing-card:hover,
+    .listing-card:active,
+    .listing-photo img,
+    a.gpu-link,
+    .inbox-row:active,
+    .chat-head:active,
+    .choice:active span,
+    .photo-add:active,
+    .slot-btn:active,
+    .thumb:active,
+    .currency-switch button:active,
+    .topnav a:active,
+    .nexus-item:active,
+    .report-link:active,
+    .picker-option:active,
+    .tabbar a:active,
+    .nexus-panel {
+        transform: none !important;
+    }
+
+    .spinner {
+        animation-duration: 1.2s;
     }
 }

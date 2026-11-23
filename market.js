@@ -28,6 +28,7 @@ const $ = (id) => document.getElementById(id);
 const view = () => $("view");
 
 let account = null;
+let profileName = null;      // the public Marketplace name; null until chosen
 let catalog = [];
 let currency = readStore("mk-currency", "PHP");
 let stopChatPoll = null;
@@ -77,6 +78,8 @@ const ICONS = {
     send: '<path d="M4 12 20 4l-6 16-2.5-6.5z"/>',
     back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+    shield: '<path d="M12 3 5 6v5c0 4.4 3 8.4 7 10 4-1.6 7-5.6 7-10V6z"/><path d="m9 12 2 2 4-4"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2.5v3M15 2.5v3M9 18.5v3M15 18.5v3M2.5 9h3M2.5 15h3M18.5 9h3M18.5 15h3"/>',
 };
 
@@ -112,6 +115,48 @@ function timeAgo(iso) {
         value /= size;
     }
     return "";
+}
+
+function monthYear(iso) {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en", { month: "short", year: "numeric" });
+}
+
+// The name others see. Asked once, the first time someone sells or messages,
+// so the Marketplace never shows any part of an email address.
+function nameField(id) {
+    return profileName ? "" : `
+        <div class="field name-field">
+            <label for="${id}">Your name on the Marketplace</label>
+            <input id="${id}" maxlength="40" autocomplete="nickname" placeholder="e.g. Lans or LansPC Parts">
+            <p class="hint">Buyers and sellers see this instead of your email. You only set it once.</p>
+            <p class="form-error" data-for="${id}" hidden></p>
+        </div>`;
+}
+
+async function saveName(id) {
+    if (profileName) return true;
+    const input = $(id);
+    const error = document.querySelector(`[data-for="${id}"]`);
+    const value = input.value.trim();
+    if (value.length < 2) {
+        error.textContent = "Choose a name of at least 2 characters.";
+        error.hidden = false;
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        return false;
+    }
+    try {
+        const saved = await send("/me/profile", "PUT", { display_name: value });
+        profileName = saved.display_name;
+        return true;
+    } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        return false;
+    }
 }
 
 function listingYear(gpu) {
@@ -194,7 +239,7 @@ function setupMenu() {
     const menu = $("nexusMenu");
     const toggle = $("nexusToggle");
     $("nexusAccount").textContent = `Signed in as ${account.email}`;
-    $("avatar").textContent = (account.email || "?")[0].toUpperCase();
+    $("avatar").textContent = (profileName || account.email || "?")[0].toUpperCase();
 
     const setOpen = (open) => {
         menu.classList.toggle("is-open", open);
@@ -437,44 +482,134 @@ async function renderListing(id) {
         </article>`;
 
     view().querySelectorAll("[data-photo]").forEach((btn) => btn.addEventListener("click", () => {
-        $("mainPhoto").src = photos[Number(btn.dataset.photo)];
+        const main = $("mainPhoto");
+        main.src = photos[Number(btn.dataset.photo)];
+        // blur bridges the two photos so the swap reads as one change
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            main.animate(
+                [{ opacity: 0.4, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0)" }],
+                { duration: 160, easing: "cubic-bezier(0.23, 1, 0.32, 1)" }
+            );
+        }
         view().querySelectorAll(".thumb").forEach((t) => t.classList.toggle("is-active", t === btn));
     }));
 
     const box = $("sellerBox");
+    const seller = item.seller;
+    const record = `
+        <div class="seller-card">
+            <span class="seller-avatar" aria-hidden="true">${escapeHTML(seller.name[0] || "?")}</span>
+            <span>
+                <strong>${escapeHTML(seller.name)}</strong>
+                <small>${[seller.member_since ? `Member since ${escapeHTML(monthYear(seller.member_since))}` : "",
+                          `${seller.for_sale ?? 0} for sale`, `${seller.sold ?? 0} sold`].filter(Boolean).join(" · ")}</small>
+            </span>
+        </div>`;
+
     if (item.is_mine) {
         box.innerHTML = `
             <p class="box-title">This is your listing</p>
             <div class="row-actions">
                 <a class="btn btn-ghost" href="#/edit/${item.id}">Edit listing</a>
                 <button class="btn btn-ghost" type="button" id="toggleSold">${item.status === "sold" ? "Put back on sale" : "Mark as sold"}</button>
-                <button class="btn btn-danger-quiet" type="button" id="deleteListing">Delete</button>
+                <button class="btn btn-danger-quiet" type="button" id="deleteListing" aria-expanded="false" aria-controls="confirmDelete">Delete</button>
+            </div>
+            <div class="confirm-panel" id="confirmDelete" hidden>
+                <p><strong>Delete this listing?</strong> Its ${(item.photos || []).length || "no"} photo${(item.photos || []).length === 1 ? "" : "s"} and any messages about it go too. This can't be undone.</p>
+                <div class="row-actions">
+                    <button class="btn btn-danger" type="button" id="confirmDeleteYes">Delete listing</button>
+                    <button class="btn btn-quiet" type="button" id="confirmDeleteNo">Keep it</button>
+                </div>
             </div>
             <p class="form-error" id="ownError" role="alert" hidden></p>`;
         $("toggleSold").addEventListener("click", async () => {
             await send(`/listings/${item.id}`, "PATCH", { status: item.status === "sold" ? "active" : "sold" });
             route();
         });
-        $("deleteListing").addEventListener("click", async () => {
-            if (!confirm(`Delete "${item.title}"? Its photos and messages go too. This can't be undone.`)) return;
+        const panel = $("confirmDelete");
+        const setPanel = (open) => {
+            panel.hidden = !open;
+            $("deleteListing").setAttribute("aria-expanded", String(open));
+            (open ? $("confirmDeleteNo") : $("deleteListing")).focus();
+        };
+        $("deleteListing").addEventListener("click", () => setPanel(panel.hidden));
+        $("confirmDeleteNo").addEventListener("click", () => setPanel(false));
+        $("confirmDeleteYes").addEventListener("click", async () => {
+            $("confirmDeleteYes").disabled = true;
+            $("confirmDeleteYes").textContent = "Deleting…";
             try {
                 await api(`/listings/${item.id}`, { method: "DELETE" });
                 go("#/mine");
             } catch (error) {
                 $("ownError").textContent = error.message;
                 $("ownError").hidden = false;
+                $("confirmDeleteYes").disabled = false;
+                $("confirmDeleteYes").textContent = "Delete listing";
             }
         });
     } else if (item.status === "sold") {
         box.innerHTML = `<p class="box-title">This GPU has been sold</p><p class="muted">Look for another one in <a href="#/">all listings</a>.</p>`;
     } else {
         box.innerHTML = `
+            ${record}
             <form id="askForm" novalidate>
                 <label class="box-title" for="askBody">Message ${escapeHTML(item.seller.name)}</label>
                 <textarea id="askBody" rows="3" maxlength="2000">Hi! Is this still available?</textarea>
+                ${nameField("askName")}
                 <p class="form-error" id="askError" role="alert" hidden></p>
                 <button class="btn btn-primary" type="submit">${icon(ICONS.send)}Send message</button>
-            </form>`;
+            </form>
+            <ul class="safety">
+                <li>${icon(ICONS.shield)}Meet in a busy public place, like a mall.</li>
+                <li>${icon(ICONS.shield)}Test the card in a PC before you pay.</li>
+                <li>${icon(ICONS.shield)}Never send money before you've seen it.</li>
+            </ul>
+            <button class="report-link" type="button" id="reportOpen" aria-expanded="false" aria-controls="reportForm">${icon(ICONS.flag)}Report this listing</button>
+            <form class="report-form" id="reportForm" hidden novalidate>
+                <fieldset>
+                    <legend>What's wrong with it?</legend>
+                    <div class="choice-row">
+                        ${[["scam", "Looks like a scam"], ["wrong_item", "Not what it says"], ["offensive", "Offensive"],
+                           ["sold_elsewhere", "Already sold"], ["other", "Something else"]].map(([v, t], i) => `
+                            <label class="choice"><input type="radio" name="reason" value="${v}" ${i === 0 ? "checked" : ""}><span>${t}</span></label>`).join("")}
+                    </div>
+                </fieldset>
+                <label class="visually-hidden" for="reportDetails">Details</label>
+                <textarea id="reportDetails" rows="2" maxlength="500" placeholder="Anything that helps an admin check it (optional)"></textarea>
+                <div class="row-actions">
+                    <button class="btn btn-ghost" type="submit">Send report</button>
+                    <button class="btn btn-quiet" type="button" id="reportCancel">Cancel</button>
+                </div>
+            </form>
+            <p class="report-done" id="reportDone" role="status" hidden></p>`;
+
+        const reportForm = $("reportForm");
+        const setReport = (open) => {
+            reportForm.hidden = !open;
+            $("reportOpen").setAttribute("aria-expanded", String(open));
+            if (open) reportForm.querySelector("input:checked").focus();
+        };
+        $("reportOpen").addEventListener("click", () => setReport(reportForm.hidden));
+        $("reportCancel").addEventListener("click", () => { setReport(false); $("reportOpen").focus(); });
+        reportForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const button = e.submitter || e.target.querySelector("[type=submit]");
+            button.disabled = true;
+            try {
+                const done = await send(`/listings/${item.id}/report`, "POST", {
+                    reason: reportForm.querySelector("[name=reason]:checked").value,
+                    details: $("reportDetails").value.trim(),
+                });
+                reportForm.hidden = true;
+                $("reportOpen").hidden = true;
+                $("reportDone").textContent = done.message;
+                $("reportDone").hidden = false;
+            } catch (error) {
+                $("reportDone").textContent = error.message;
+                $("reportDone").hidden = false;
+                button.disabled = false;
+            }
+        });
         $("askForm").addEventListener("submit", async (event) => {
             event.preventDefault();
             const body = $("askBody").value.trim();
@@ -484,8 +619,13 @@ async function renderListing(id) {
                 error.hidden = false;
                 return;
             }
-            const button = event.submitter;
+            // submitter is missing when the form is sent without clicking its button
+            const button = event.submitter || event.target.querySelector("[type=submit]");
             button.disabled = true;
+            if (!(await saveName("askName"))) {
+                button.disabled = false;
+                return;
+            }
             try {
                 const { conversation_id } = await send(`/listings/${item.id}/messages`, "POST", { body });
                 go(`#/chat/${conversation_id}`);
@@ -540,6 +680,7 @@ async function renderForm(id) {
 
     view().innerHTML = `
         <a class="back-link" href="${existing ? `#/listing/${existing.id}` : "#/"}">${icon(ICONS.back)}${existing ? "Back to the listing" : "All listings"}</a>
+        <div class="sell-layout">
         <section class="panel form-panel">
             <h1>${existing ? "Edit your listing" : "Sell a GPU"}</h1>
             <p class="muted">${existing ? "Changes show to buyers right away." : "Good photos and an honest condition sell cards fastest."}</p>
@@ -597,13 +738,38 @@ async function renderForm(id) {
                     <textarea id="description" rows="5" maxlength="2000" placeholder="How long you used it, any repairs, what's in the box, why you're selling.">${escapeHTML(existing?.description || "")}</textarea>
                 </div>
 
+                ${nameField("sellName")}
+
                 <p class="form-error" id="formError" role="alert" hidden></p>
                 <div class="row-actions">
                     <button class="btn btn-primary" type="submit" id="saveListing">${existing ? "Save changes" : "Post listing"}</button>
                     <a class="btn btn-quiet" href="${existing ? `#/listing/${existing.id}` : "#/"}">Cancel</a>
                 </div>
             </form>
-        </section>`;
+        </section>
+        <aside class="sell-preview" aria-label="Preview">
+            <p class="preview-label">How buyers will see it</p>
+            <div id="previewCard"></div>
+        </aside>
+        </div>`;
+
+    // ----- live preview of the listing card -----
+    const drawPreview = () => {
+        const form = $("listingForm");
+        const price = Number($("price").value);
+        $("previewCard").innerHTML = listingCard({
+            id: existing?.id || 0,
+            photos: state.photos,
+            status: existing?.status || "active",
+            price: price > 0 ? price : 0,
+            currency: $("priceCurrency").value,
+            title: $("title").value.trim() || "Your listing title",
+            condition: form.querySelector("[name=condition]:checked")?.value || "good",
+            location: $("location").value.trim(),
+            seller: { name: profileName || $("sellName")?.value.trim() || "You" },
+            created_at: existing?.created_at || new Date().toISOString(),
+        }).replace("<a ", '<div tabindex="-1" ').replace(/<\/a>\s*$/, "</div>");
+    };
 
     // ----- photos -----
     const drawPhotos = () => {
@@ -618,6 +784,7 @@ async function renderForm(id) {
             slots.push(`<button class="photo-add" type="button" id="addPhoto">${icon(ICONS.camera)}<span>${state.photos.length ? "Add more" : "Add photos"}</span><small>or drop them here</small></button>`);
         }
         $("photoGrid").innerHTML = slots.join("");
+        drawPreview();
         $("addPhoto")?.addEventListener("click", () => $("photoInput").click());
         $("photoGrid").querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => {
             state.photos.splice(Number(b.dataset.remove), 1);
@@ -688,6 +855,9 @@ async function renderForm(id) {
     });
     drawChosen();
 
+    $("listingForm").addEventListener("input", drawPreview);
+    $("listingForm").addEventListener("change", drawPreview);
+
     // ----- save -----
     $("listingForm").addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -725,6 +895,7 @@ async function renderForm(id) {
             gpu_id: state.gpuId ? Number(state.gpuId) : null,
         };
         const button = $("saveListing");
+        if (!(await saveName("sellName"))) return;
         button.disabled = true;
         button.textContent = existing ? "Saving…" : "Posting…";
         try {
@@ -896,13 +1067,15 @@ async function renderChat(id) {
     const thread = $("thread");
     const draw = () => {
         const nearBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80;
-        thread.innerHTML = data.messages.map((m) => `
-            <li class="bubble${m.mine ? " is-mine" : ""}">
+        const firstNew = draw.done ? (draw.count ?? data.messages.length) : data.messages.length;
+        thread.innerHTML = data.messages.map((m, i) => `
+            <li class="bubble${m.mine ? " is-mine" : ""}${i >= firstNew ? " is-new" : ""}">
                 <p>${escapeHTML(m.body)}</p>
                 <time datetime="${escapeHTML(m.created_at)}">${escapeHTML(timeAgo(m.created_at))}</time>
             </li>`).join("");
         if (nearBottom || !draw.done) thread.scrollTop = thread.scrollHeight;
         draw.done = true;
+        draw.count = data.messages.length;
     };
     draw();
 
@@ -974,6 +1147,11 @@ async function setup() {
     if (!account) return;
     document.documentElement.classList.remove("auth-checking");
 
+    try {
+        profileName = (await api("/me/profile")).display_name;
+    } catch {
+        profileName = null;   // asked for again when it's needed
+    }
     setupMenu();
     setupCurrency();
     try {
